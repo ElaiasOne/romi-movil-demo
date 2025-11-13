@@ -83,9 +83,10 @@
         <div v-if="!loading && filtrados.length === 0" class="empty">
           <ion-icon name="pricetags-outline" class="empty-icon" />
           <p>No hay artículos que coincidan.</p>
-          <ion-button size="default" onClick="window.location.href='/app/articulo/new'">Crear artículo</ion-button>
+          <!-- 👇 acá uso @click, no onClick con string -->
+          <ion-button size="default" @click="goNew">Crear artículo</ion-button>
         </div>
-  
+
         <!-- FAB -->
         <ion-fab slot="fixed" vertical="bottom" horizontal="end">
           <ion-fab-button @click="goNew">
@@ -95,16 +96,18 @@
       </ion-content>
     </ion-page>
   </template>
-  
+
   <script setup lang="ts">
   import { onMounted, ref, computed } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     IonPage, IonContent, IonSearchbar, IonSegment, IonSegmentButton, IonLabel,
     IonCard, IonCardHeader, IonCardContent, IonBadge, IonButton,
-    IonSkeletonText, IonFab, IonFabButton, IonIcon
+    IonSkeletonText, IonFab, IonFabButton, IonIcon,
+    // 👇 IMPORTANTE: este hook de Ionic
+    onIonViewDidEnter
   } from '@ionic/vue'
-  
+
   type Articulo = {
     id: string
     codigointerno: string
@@ -116,49 +119,48 @@
     activo: boolean
     creadoEl: string
   }
-  
-  // —— demo store local (localStorage). Si ya tenés services/db.ts, reemplazá estas funcs por las tuyas:
+
   const KEY = 'romi_articulos'
   const getList = (): Articulo[] => JSON.parse(localStorage.getItem(KEY) || '[]')
   const setList = (arr: Articulo[]) => localStorage.setItem(KEY, JSON.stringify(arr))
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
-  
+
   const router = useRouter()
   const loading = ref(true)
   const q = ref('')
   const filtro = ref<'activos' | 'todos'>('activos')
   const list = ref<Articulo[]>([])
-  
+
   function seedIfEmpty() {
     if (getList().length === 0) {
       const seed: Articulo[] = [
-        { id: uuid(), codigointerno:'A001', ean:'779000000001', descripcion:'Lapicera ROMI Azul', preciocosto: 100, precioventa: 150, stock: 50, activo: true, creadoEl: new Date().toISOString() },
-        { id: uuid(), codigointerno:'A002', ean:'779000000002', descripcion:'Cuaderno A5',       preciocosto: 800, precioventa:1200, stock: 20, activo: true, creadoEl: new Date().toISOString() },
-        { id: uuid(), codigointerno:'A003', ean:'',             descripcion:'Regla 30cm',        preciocosto: 300, precioventa: 500, stock:  8, activo: false,creadoEl: new Date().toISOString() },
+        { id: uuid(), codigointerno:'A001', ean:'779000000001', descripcion:'Lapicera ROMI Azul', preciocosto: 100, precioventa: 150, stock: 50, activo: true,  creadoEl: new Date().toISOString() },
+        { id: uuid(), codigointerno:'A002', ean:'779000000002', descripcion:'Cuaderno A5',       preciocosto: 800, precioventa:1200, stock: 20, activo: true,  creadoEl: new Date().toISOString() },
+        { id: uuid(), codigointerno:'A003', ean:'',             descripcion:'Regla 30cm',        preciocosto: 300, precioventa: 500, stock:  8, activo: false, creadoEl: new Date().toISOString() },
       ]
       setList(seed)
     }
   }
-  
+
   function load() {
     list.value = getList()
   }
-  
+
   function goNew() {
     router.push('/app/articulo/new')
   }
-  
+
   function goEdit(id: string) {
     router.push(`/app/articulo/${id}`)
   }
-  
+
   function remove(id: string) {
     const ok = confirm('¿Eliminar artículo? Esta acción no se puede deshacer.')
     if (!ok) return
     setList(getList().filter(a => a.id !== id))
     load()
   }
-  
+
   function toggleActivo(a: Articulo) {
     const arr = getList()
     const i = arr.findIndex(x => x.id === a.id)
@@ -168,7 +170,7 @@
       load()
     }
   }
-  
+
   const filtrados = computed(() => {
     const term = q.value.trim().toLowerCase()
     const items = list.value.filter(a => {
@@ -177,14 +179,19 @@
       const act = filtro.value === 'todos' ? true : a.activo
       return match && act
     })
-    // orden sencillo: activos primero, luego por descripción
     return items.sort((x,y) => Number(y.activo) - Number(x.activo) || x.descripcion.localeCompare(y.descripcion))
   })
-  
+
+  // 👇 Primera carga
   onMounted(() => {
     seedIfEmpty()
     load()
-    setTimeout(() => (loading.value = false), 400) // simula carga
+    setTimeout(() => (loading.value = false), 400)
+  })
+
+  // 👇 Cada vez que volvés a esta vista (después de crear/editar)
+  onIonViewDidEnter(() => {
+    load()
   })
   </script>
   
