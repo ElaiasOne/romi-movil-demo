@@ -80,113 +80,127 @@
   </template>
   
   <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
-  import {
-    IonPage, IonContent, IonSearchbar, IonSegment, IonSegmentButton, IonLabel,
-    IonCard, IonCardHeader, IonCardContent, IonBadge, IonButton, IonChip,
-    IonFab, IonFabButton, IonIcon
-  } from '@ionic/vue'
-  
-  type Venta = {
-    id: string
-    nro: number
-    clienteId: string
-    fecha: string
-    total: number
-    tipoPago: 'contado' | 'cuotas'
-    cuotas?: number
-    pagadas?: number
-    detalle?: Array<{ articuloId: string; descripcion: string; cantidad: number; precio: number }>
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  IonPage, IonContent, IonSearchbar, IonSegment, IonSegmentButton, IonLabel,
+  IonCard, IonCardHeader, IonCardContent, IonBadge, IonButton, IonChip,
+  IonFab, IonFabButton, IonIcon,
+  // 👇 IMPORTANTE: hook de Ionic
+  onIonViewDidEnter
+} from '@ionic/vue'
+
+type Venta = {
+  id: string
+  nro: number
+  clienteId: string
+  fecha: string
+  total: number
+  tipoPago: 'contado' | 'cuotas'
+  cuotas?: number
+  pagadas?: number
+  detalle?: Array<{ articuloId: string; descripcion: string; cantidad: number; precio: number }>
+}
+
+const KEY_V = 'romi_ventas'
+const KEY_C = 'romi_clientes'
+const getVentas = ():Venta[] => JSON.parse(localStorage.getItem(KEY_V) || '[]')
+const setVentas = (arr:Venta[]) => localStorage.setItem(KEY_V, JSON.stringify(arr))
+const getClientes = () => JSON.parse(localStorage.getItem(KEY_C) || '[]')
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
+
+const router = useRouter()
+const loading = ref(true)
+const list = ref<Venta[]>([])
+const q = ref('')
+const filtro = ref<'todas'|'pendientes'|'canceladas'>('todas')
+
+function seedIfEmpty(){
+  if (getVentas().length===0){
+    const c = getClientes()
+    const clienteId = c[0]?.id || 'demo'
+    const baseNro = 1000 + Math.floor(Math.random()*100)
+    const seed:Venta[] = [
+      { id: uuid(), nro: baseNro,   clienteId, fecha: new Date().toISOString(), total: 120000, tipoPago:'contado' },
+      { id: uuid(), nro: baseNro+1, clienteId, fecha: new Date().toISOString(), total: 240000, tipoPago:'cuotas', cuotas: 6, pagadas: 2 },
+      { id: uuid(), nro: baseNro+2, clienteId, fecha: new Date().toISOString(), total:  80000, tipoPago:'cuotas', cuotas: 3, pagadas: 3 },
+    ]
+    setVentas(seed)
   }
-  
-  const KEY_V = 'romi_ventas'
-  const KEY_C = 'romi_clientes'
-  const getVentas = ():Venta[] => JSON.parse(localStorage.getItem(KEY_V) || '[]')
-  const setVentas = (arr:Venta[]) => localStorage.setItem(KEY_V, JSON.stringify(arr))
-  const getClientes = () => JSON.parse(localStorage.getItem(KEY_C) || '[]')
-  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
-  
-  const router = useRouter()
-  const loading = ref(true)
-  const list = ref<Venta[]>([])
-  const q = ref('')
-  const filtro = ref<'todas'|'pendientes'|'canceladas'>('todas')
-  
-  function seedIfEmpty(){
-    if (getVentas().length===0){
-      const c = getClientes()
-      const clienteId = c[0]?.id || 'demo'
-      const baseNro = 1000 + Math.floor(Math.random()*100)
-      const seed:Venta[] = [
-        { id: uuid(), nro: baseNro,   clienteId, fecha: new Date().toISOString(), total: 120000, tipoPago:'contado' },
-        { id: uuid(), nro: baseNro+1, clienteId, fecha: new Date().toISOString(), total: 240000, tipoPago:'cuotas', cuotas: 6, pagadas: 2 },
-        { id: uuid(), nro: baseNro+2, clienteId, fecha: new Date().toISOString(), total:  80000, tipoPago:'cuotas', cuotas: 3, pagadas: 3 },
-      ]
-      setVentas(seed)
-    }
-  }
-  function load(){ list.value = getVentas() }
-  
-  function restantes(v:Venta){ return (v.cuotas||0) - (v.pagadas||0) }
-  function saldo(v:Venta){
-    if (v.tipoPago==='contado') return 0
-    const cuota = (v.total / (v.cuotas||1))
-    const s = Math.max(0, Math.round((v.cuotas!- (v.pagadas||0)) * cuota))
-    return s
-  }
-  function money(n:number){ return n.toLocaleString('es-AR',{maximumFractionDigits:0}) }
-  function fmtDate(iso:string){ return new Date(iso).toLocaleDateString('es-AR') }
-  function nombreCliente(id:string){
-    const c = getClientes().find((x:any)=>x.id===id)
-    return c ? c.nombre : 'Cliente'
-  }
-  function labelCuotas(v:Venta){
-    const r = restantes(v)
-    return r===0 ? 'Cancelada' : `${v.pagadas||0}/${v.cuotas} cuotas`
-  }
-  function statusClass(v:Venta){
-    if (v.tipoPago==='contado') return 'card-ok'
-    if (restantes(v)===0) return 'card-ok'
-    return 'card-pend'
-  }
-  
-  const filtradas = computed(()=>{
-    const term = q.value.trim().toLowerCase()
-    let arr = list.value.filter(v=>{
-      const cliente = nombreCliente(v.clienteId).toLowerCase()
-      const match = term==='' || cliente.includes(term) || String(v.nro).includes(term)
-      return match
-    })
-    if (filtro.value==='pendientes') arr = arr.filter(v => v.tipoPago==='cuotas' && restantes(v)>0)
-    if (filtro.value==='canceladas') arr = arr.filter(v => (v.tipoPago==='contado') || (v.tipoPago==='cuotas' && restantes(v)===0))
-    return arr.sort((a,b)=> new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+}
+
+function load(){
+  list.value = getVentas()
+}
+
+function restantes(v:Venta){ return (v.cuotas||0) - (v.pagadas||0) }
+function saldo(v:Venta){
+  if (v.tipoPago==='contado') return 0
+  const cuota = (v.total / (v.cuotas||1))
+  const s = Math.max(0, Math.round((v.cuotas!- (v.pagadas||0)) * cuota))
+  return s
+}
+function money(n:number){ return n.toLocaleString('es-AR',{maximumFractionDigits:0}) }
+function fmtDate(iso:string){ return new Date(iso).toLocaleDateString('es-AR') }
+function nombreCliente(id:string){
+  const c = getClientes().find((x:any)=>x.id===id)
+  return c ? c.nombre : 'Cliente'
+}
+function labelCuotas(v:Venta){
+  const r = restantes(v)
+  return r===0 ? 'Cancelada' : `${v.pagadas||0}/${v.cuotas} cuotas`
+}
+function statusClass(v:Venta){
+  if (v.tipoPago==='contado') return 'card-ok'
+  if (restantes(v)===0) return 'card-ok'
+  return 'card-pend'
+}
+
+const filtradas = computed(()=>{
+  const term = q.value.trim().toLowerCase()
+  let arr = list.value.filter(v=>{
+    const cliente = nombreCliente(v.clienteId).toLowerCase()
+    const match = term==='' || cliente.includes(term) || String(v.nro).includes(term)
+    return match
   })
-  
-  const totalSaldoPendiente = computed(()=> filtradas.value.reduce((acc,v)=> acc + saldo(v), 0))
-  
-  function goNew(){ router.push('/app/venta/new') }
-  function goEdit(id:string){ router.push(`/app/venta/${id}`) }
-  function remove(id:string){
-    if (!confirm('¿Eliminar venta?')) return
-    setVentas(getVentas().filter(v=>v.id!==id)); load()
-  }
-  function registrarPago(v:Venta){
-    const arr = getVentas()
-    const i = arr.findIndex(x=>x.id===v.id)
-    if (i>-1 && arr[i].tipoPago==='cuotas'){
-      const pag = Math.min((arr[i].pagadas||0) + 1, arr[i].cuotas||1)
-      arr[i].pagadas = pag
-      setVentas(arr); load()
-    }
-  }
-  
-  onMounted(()=>{
-    seedIfEmpty()
+  if (filtro.value==='pendientes') arr = arr.filter(v => v.tipoPago==='cuotas' && restantes(v)>0)
+  if (filtro.value==='canceladas') arr = arr.filter(v => (v.tipoPago==='contado') || (v.tipoPago==='cuotas' && restantes(v)===0))
+  return arr.sort((a,b)=> new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+})
+
+const totalSaldoPendiente = computed(()=> filtradas.value.reduce((acc,v)=> acc + saldo(v), 0))
+
+function goNew(){ router.push('/app/venta/new') }
+function goEdit(id:string){ router.push(`/app/venta/${id}`) }
+function remove(id:string){
+  if (!confirm('¿Eliminar venta?')) return
+  setVentas(getVentas().filter(v=>v.id!==id))
+  load()
+}
+function registrarPago(v:Venta){
+  const arr = getVentas()
+  const i = arr.findIndex(x=>x.id===v.id)
+  if (i>-1 && arr[i].tipoPago==='cuotas'){
+    const pag = Math.min((arr[i].pagadas||0) + 1, arr[i].cuotas||1)
+    arr[i].pagadas = pag
+    setVentas(arr)
     load()
-    setTimeout(()=> loading.value=false, 300)
-  })
-  </script>
+  }
+}
+
+// Primera carga
+onMounted(()=>{
+  seedIfEmpty()
+  load()
+  setTimeout(()=> loading.value=false, 300)
+})
+
+// Cada vez que volvés a la vista de Ventas
+onIonViewDidEnter(() => {
+  load()
+})
+</script>
+
   
   <style scoped>
   .title { margin: 0 0 6px; font-weight: 800; }
