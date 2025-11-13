@@ -25,12 +25,15 @@ const routes = [
   { path: '/:pathMatch(.*)*', redirect: '/app' },
 ]
 
-// 👇 Historia: hash en prod, history en dev
+// 👇 clave: en producción usamos HASH router
 const history = import.meta.env.PROD
-  ? createWebHashHistory()
+  ? createWebHashHistory()                    // https://romi-movil-demo.vercel.app/#/app/...
   : createWebHistory(import.meta.env.BASE_URL)
 
-const router = createRouter({ history, routes })
+const router = createRouter({
+  history,
+  routes,
+})
 
 router.beforeEach((to, _from, next) => {
   const isLogged = !!localStorage.getItem('romi_user')
