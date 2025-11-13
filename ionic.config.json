@@ -1,0 +1,7 @@
+{
+  "name": "romi-movil-demo",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite"
+}
