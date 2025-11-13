@@ -100,7 +100,9 @@ import { useRouter } from 'vue-router'
 import {
   IonPage, IonContent, IonSearchbar, IonSegment, IonSegmentButton, IonLabel,
   IonCard, IonCardHeader, IonCardContent, IonBadge, IonButton, IonIcon,
-  IonSkeletonText, IonFab, IonFabButton
+  IonSkeletonText, IonFab, IonFabButton,
+  // 👇 IMPORTANTE: hook de ciclo de vida de Ionic
+  onIonViewDidEnter
 } from '@ionic/vue'
 
 type Cliente = {
@@ -129,43 +131,60 @@ const list = ref<Cliente[]>([])
 function seedIfEmpty() {
   if (getList().length === 0) {
     const seed: Cliente[] = [
-      { id: uuid(), nombre: 'Juan Pérez',   email:'juan@demo.com', telefono:'11-5555-1111', direccion:'Av. Siempreviva 123', doc:'20-12345678-9', activo:true,  creadoEl:new Date().toISOString() },
-      { id: uuid(), nombre: 'María López',  email:'',              telefono:'',             direccion:'',                    doc:'',            activo:false, creadoEl:new Date().toISOString() },
-      { id: uuid(), nombre: 'Kiosco Romi',  email:'kiosco@romi.ar',telefono:'11-4444-2222', direccion:'Mitre 450',           doc:'',            activo:true,  creadoEl:new Date().toISOString() },
+      { id: uuid(), nombre: 'Juan Pérez',   email:'juan@demo.com',   telefono:'11-5555-1111', direccion:'Av. Siempreviva 123', doc:'20-12345678-9', activo:true,  creadoEl:new Date().toISOString() },
+      { id: uuid(), nombre: 'María López',  email:'',                telefono:'',             direccion:'',                    doc:'',            activo:false, creadoEl:new Date().toISOString() },
+      { id: uuid(), nombre: 'Kiosco Romi',  email:'kiosco@romi.ar',  telefono:'11-4444-2222', direccion:'Mitre 450',           doc:'',            activo:true,  creadoEl:new Date().toISOString() },
     ]
     setList(seed)
   }
 }
-function load() { list.value = getList() }
+
+function load() {
+  list.value = getList()
+}
 
 function goNew() { router.push('/app/cliente/new') }
 function goEdit(id: string) { router.push(`/app/cliente/${id}`) }
 
 function remove(id: string) {
   if (!confirm('¿Eliminar cliente?')) return
-  setList(getList().filter(x => x.id !== id)); load()
+  setList(getList().filter(x => x.id !== id))
+  load()
 }
+
 function toggleActivo(c: Cliente) {
   const arr = getList()
   const i = arr.findIndex(x => x.id === c.id)
-  if (i > -1) { arr[i].activo = !arr[i].activo; setList(arr); load() }
+  if (i > -1) {
+    arr[i].activo = !arr[i].activo
+    setList(arr)
+    load()
+  }
 }
 
 const filtrados = computed(() => {
   const term = q.value.trim().toLowerCase()
   const items = list.value.filter(c => {
-    const txt = (c.nombre + ' ' + (c.email||'')).toLowerCase()
+    const txt = (c.nombre + ' ' + (c.email || '')).toLowerCase()
     const match = term === '' || txt.includes(term)
     const act = filtro.value === 'todos' ? true : c.activo
     return match && act
   })
-  return items.sort((x,y) => Number(y.activo) - Number(x.activo) || x.nombre.localeCompare(y.nombre))
+  return items.sort(
+    (x, y) => Number(y.activo) - Number(x.activo) || x.nombre.localeCompare(y.nombre)
+  )
 })
 
+// Primera carga
 onMounted(() => {
   seedIfEmpty()
   load()
   setTimeout(() => (loading.value = false), 400)
+})
+
+// Cada vez que volvés a la vista de Clientes
+onIonViewDidEnter(() => {
+  load()
 })
 </script>
 
